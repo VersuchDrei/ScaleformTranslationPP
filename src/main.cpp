@@ -1,74 +1,64 @@
-﻿#include "Events.h"
+#include <stddef.h>
+
+#include "Events.h"
 #include "Hooks.h"
 
-namespace
-{
-	void InitializeLog()
-	{
-#ifndef NDEBUG
-		auto sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
-#else
-		auto path = logger::log_directory();
-		if (!path) {
-			util::report_and_fail("Failed to find standard logging directory"sv);
-		}
+using namespace RE::BSScript;
+using namespace SKSE;
+using namespace SKSE::log;
+using namespace SKSE::stl;
 
-		*path /= fmt::format("{}.log"sv, Plugin::NAME);
-		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
-#endif
+namespace {
+    void InitializeLogging() {
+        auto path = log_directory();
+        if (!path) {
+            report_and_fail("Unable to lookup SKSE logs directory.");
+        }
+        *path /= PluginDeclaration::GetSingleton()->GetName();
+        *path += L".log";
 
-#ifndef NDEBUG
-		const auto level = spdlog::level::trace;
-#else
-		const auto level = spdlog::level::info;
-#endif
+        std::shared_ptr<spdlog::logger> log;
+        if (IsDebuggerPresent()) {
+            log = std::make_shared<spdlog::logger>(
+                "Global", std::make_shared<spdlog::sinks::msvc_sink_mt>());
+        } else {
+            log = std::make_shared<spdlog::logger>(
+                "Global", std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true));
+        }
+        log->set_level(spdlog::level::info);
+        log->flush_on(spdlog::level::info);
 
-		auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
-		log->set_level(level);
-		log->flush_on(level);
+        spdlog::set_default_logger(std::move(log));
+        spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] [%t] [%s:%#] %v");
+    }
 
-		spdlog::set_default_logger(std::move(log));
-		spdlog::set_pattern("%g(%#): [%^%l%$] %v"s);
-	}
+    void MessageHandler(SKSE::MessagingInterface::Message* a_msg) {
+        switch (a_msg->type) {
+            case SKSE::MessagingInterface::kInputLoaded: {
+                const auto ui = RE::UI::GetSingleton();
+                const auto menuSink = Events::MenuOpenCloseEventHandler::GetSingleton();
+                ui->AddEventSink(menuSink);
 
-	void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
-	{
-		switch (a_msg->type) {
-		case SKSE::MessagingInterface::kInputLoaded:
-			{
-				const auto ui = RE::UI::GetSingleton();
-				const auto menuSink = Events::MenuOpenCloseEventHandler::GetSingleton();
-				ui->AddEventSink(menuSink);
-
-				Hooks::Install();
-			}
-			break;
-		}
-	}
+                Hooks::Install();
+            } break;
+        }
+    }
 }
 
-extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
-	SKSE::PluginVersionData v;
+SKSEPluginLoad(const LoadInterface* skse) {
+    InitializeLogging();
 
-	v.PluginVersion(Plugin::VERSION);
-	v.PluginName(Plugin::NAME);
+    auto* plugin = PluginDeclaration::GetSingleton();
+    auto version = plugin->GetVersion();
+    log::info("{} {} is loading...", plugin->GetName(), version);
 
-	v.UsesAddressLibrary(true);
-	v.CompatibleVersions({ SKSE::RUNTIME_LATEST });
 
-	return v;
-}();
+    Init(skse);
+    SKSE::AllocTrampoline(1 << 4);
 
-extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
-{
-	InitializeLog();
-	logger::info("{} v{}"sv, Plugin::NAME, Plugin::VERSION.string());
+    const auto messaging = SKSE::GetMessagingInterface();
+    messaging->RegisterListener("SKSE", MessageHandler);
 
-	SKSE::Init(a_skse);
-	SKSE::AllocTrampoline(1 << 4);
-
-	const auto messaging = SKSE::GetMessagingInterface();
-	messaging->RegisterListener("SKSE", MessageHandler);
-
-	return true;
+    log::info("{} has finished loading.", plugin->GetName());
+    return true;
 }
