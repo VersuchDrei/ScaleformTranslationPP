@@ -24,8 +24,8 @@ namespace Hooks {
 
             static void InstallHooks() {
                 int offset;
-                int minor = REL::Module::get().version().minor();
-                switch (minor) {
+                int patch = REL::Module::get().version().patch();
+                switch (patch) {
                     case 97: //SE
                         offset = 0xA08;
                         break;
@@ -37,7 +37,7 @@ namespace Hooks {
                         break;
                     default:
                         offset = 0xEB1;
-                    }
+                }
                 REL::Relocation<std::uintptr_t> target{RELOCATION_ID(35548, 36547), offset};
                 auto& trampoline = SKSE::GetTrampoline();
                 _ctor = trampoline.write_call<5>(target.address(), &BSScaleformMovieLoaderEx::Ctor);
