@@ -35,7 +35,10 @@ namespace Hooks {
                     case 353:
                         offset = 0xE91;
                         break;
-                    default:
+                    case 1130:
+                        offset = 0xDA1;
+                        break;
+                    default: // 629, 640, 659
                         offset = 0xEB1;
                 }
                 REL::Relocation<std::uintptr_t> target{RELOCATION_ID(35548, 36547), offset};
