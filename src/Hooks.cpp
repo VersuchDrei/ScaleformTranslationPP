@@ -35,11 +35,16 @@ namespace Hooks {
                     case 353:
                         offset = 0xE91;
                         break;
+                    case 629:
+                    case 640:
+                    case 659:
+                        offset = 0xEB1;
+                        break;
                     case 1130:
+                    case 1170:
+                    default:
                         offset = 0xDA1;
                         break;
-                    default: // 629, 640, 659
-                        offset = 0xEB1;
                 }
                 REL::Relocation<std::uintptr_t> target{RELOCATION_ID(35548, 36547), offset};
                 auto& trampoline = SKSE::GetTrampoline();
